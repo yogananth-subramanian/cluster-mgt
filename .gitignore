@@ -1,0 +1,10 @@
+infrared
+hosts
+activate
+.venv
+ansible.cfg
+*.retry
+.plugins.ini
+iactivate
+playbooks/roles/
+ir-commands*

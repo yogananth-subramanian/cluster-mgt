@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Onetime setup on the laptop to setup beaker nodes
+virtualenv --python="/usr/bin/python2.7" .venv
+source .venv/bin/activate
+git clone https://github.com/redhat-openstack/infrared.git
+cd infrared
+pip install -e .
+
+cat <<EOF> ansible.cfg
+[defaults]
+host_key_checking = False
+forks = 500
+timeout = 30
+force_color = 1
+
+[ssh_connection]
+pipelining = True
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s
+EOF
+

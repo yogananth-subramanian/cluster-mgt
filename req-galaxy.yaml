@@ -1,0 +1,4 @@
+# Ansible Galaxy requirements file
+# ansible-galaxy install -r req-galaxy.yaml
+
+- src: gantsign.golang

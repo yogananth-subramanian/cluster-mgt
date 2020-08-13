@@ -1,0 +1,168 @@
+---
+- hosts: master
+  gather_facts: no
+  user: root
+  vars:
+    create: yes
+  tasks:
+    - fail:
+        msg: "root_password should be defined"
+      when: root_password is not defined
+    - name: get vms list
+      virt:
+        command: list_vms
+      register: vms
+
+    - set_fact:
+        create: no
+      when: "'master' in  vms.list_vms"
+
+    - when: create
+      block:
+        - name: create disk
+          command:
+              virt-builder --format qcow2 centos-7.6 --size 20G
+                -o /home/images/master.qcow2
+                --root-password password:{{ root_password }}
+          args:
+            creates: /home/images/master.qcow2
+
+        - name: update ifcfg
+          copy:
+            dest: /tmp/ifcfg-eth0
+            content: |
+              DEVICE=eth0
+              ONBOOT=yes
+              IPADDR=192.168.122.199
+              NETMASK=255.255.255.0
+              GATEWAY=192.168.122.1
+              NM_CONTROLLED=no
+              DNS1=192.168.122.1
+
+        - name: create vm xml
+          command: >
+            virt-install --import --name master
+            --memory 16384 --vcpus 4
+            --disk /home/images/master.qcow2
+            --noautoconsole --os-variant rhel7
+            --network network:default
+            --print-xml
+          register: masterxml
+
+        - name: create xml file
+          copy:
+            dest: /home/images/master.xml
+            content:
+              "{{ masterxml.stdout_lines|join('\n') }}"
+
+        - name: define vm
+          command: virsh define /home/images/master.xml
+
+        - name: copy ifcf file
+          command: virt-copy-in -d master /tmp/ifcfg-eth0 /etc/sysconfig/network-scripts/
+
+        - name: copy authorized_keys file
+          command: virt-copy-in -d master /root/.ssh /root/
+    - name: create hosts entry
+      lineinfile:
+        path: /etc/hosts
+        line: '192.168.122.199 master'
+
+    - name: start vm
+      virt:
+        name: master
+        state: running
+
+    - name: add host
+      add_host:
+        hostname: 192.168.122.199
+        ansible_ssh_user: root
+        ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q root@dell-r730-045.dsal.lab.eng.rdu2.redhat.com"'
+        group: kubemaster
+
+- hosts: nodes:beaker-node:kubemaster
+  gather_facts: false
+  user: root
+  tasks:
+    - name: "Setup Kubernetes Repo"
+      blockinfile:
+        create: yes
+        path: /etc/yum.repos.d/kubernetes.repo
+        content: |
+          [kubernetes]
+          name=Kubernetes
+          baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+          enabled=1
+          gpgcheck=1
+          repo_gpgcheck=1
+          gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+          exclude=kube*
+
+    - name: "Disable SELinux"
+      selinux:
+        policy: targeted
+        state: permissive
+
+    - name: "Install Docker Package"
+      yum:
+        name: docker
+
+    - name: "Enable Docker"
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: "Install Kubernetes Packages"
+      command: yum install -y kubelet kubeadm kubectl golang make --disableexcludes=kubernetes
+
+    - name: "Pull Kubernetes Images"
+      command: kubeadm config images pull
+
+    - name: "Disable swap"
+      command: swapoff -a
+
+- hosts: kubemaster
+  gather_facts: false
+  user: root
+  tasks:
+    - name: "Set Hostname"
+      hostname:
+        name: kubemaster.example.com
+
+    - name: "Initialize Kubernetes"
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16
+      register: kubeadm_output
+
+    - file:
+        path: /root/kubeadm_output.txt
+        state: touch
+
+    - name: "Update the 'kubeadm init ...' output to local file"
+      copy:
+        dest: /root/kubeadm_output.txt
+        content: "{{ kubeadm_output.stdout_lines }}"
+
+    - name: "Make .kube dir"
+      file:
+        path: '/root/.kube'
+        state: directory
+
+    - name: "Create Config file"
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+
+    - name: "Update ~/.bashrc"
+      lineinfile:
+        path: /root/.bashrc
+        line: "{{ item }}"
+      with_items:
+        - export KUBE_EDITOR=vim
+        - alias kcn="kubectl -n kube-system"
+        - alias kc="kubectl"
+
+# TODO: Add rule > iptables -I INPUT 3 -s 192.168.122.0/24 -j ACCEPT
+# ip r a 192.168.122.0/24 via 192.168.10.1 dev em2
+

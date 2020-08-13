@@ -1,0 +1,4 @@
+---
+rhel_guest_image_base: "http://rhos-qe-mirror-tlv.usersys.redhat.com"
+rhel_guest_image_url_osp13: "http://download.devel.redhat.com/rhel-7/rel-eng/RHEL-7/latest-RHEL-7.8/compose/Server/x86_64/images/rhel-guest-image-7.8-41.x86_64.qcow2"
+rhel_guest_image_url_osp16_1: "{{ rhel_guest_image_base }}/brewroot/packages/rhel-guest-image/8.2/300/images/rhel-guest-image-8.2-300.x86_64.qcow2"

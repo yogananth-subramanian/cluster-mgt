@@ -1,0 +1,95 @@
+---
+- hosts: master
+  gather_facts: no
+  user: root
+  vars:
+    create: yes
+    vm_name: tripleo
+    br_name: br_standalone
+  tasks:
+    - fail:
+        msg: "root_password should be defined"
+      when: root_password is not defined
+    - name: get vms list
+      virt:
+        command: list_vms
+      register: vms
+    - debug:
+       msg: "{{ vms.list_vms }}"
+
+    - set_fact:
+        create: no
+      when: "vm_name in  vms.list_vms"
+
+    - when: create
+      block:
+        - name: create bridge network
+          virt_net:
+            command: define
+            name: "{{ br_name }}"
+            xml: '{{ lookup("template", "../templates/bridge.xml.j2") }}'
+
+        - name: start bridge network
+          virt_net:
+            command: start
+            name: "{{ br_name }}"
+            state: active
+
+        - name: auto start bridge network
+          virt_net:
+            name: "{{ br_name }}"
+            autostart: yes
+
+        - name: create disk
+          command:
+              virt-builder --format qcow2 fedora-28 --size 20G
+                -o /home/images/{{ vm_name }}.qcow2
+                --root-password password:{{ root_password }}
+                --firstboot-command 'useradd -m -p "{{ root_password }}" stack ;'
+          args:
+            creates: /home/images/{{ vm_name }}.qcow2
+
+        - name: create vm xml
+          command: >
+            virt-install --import --name {{ vm_name }}
+              --memory 8196 --vcpus 2
+              --disk /home/images/{{ vm_name }}.qcow2
+              --noautoconsole --os-variant rhel7
+              --network network:default
+              --network network:default
+              --print-xml
+          register: vm_xml
+
+        - name: create xml file
+          copy:
+            dest: "/home/images/{{ vm_name }}.xml"
+            content:
+              "{{ vm_xml.stdout_lines|join('\n') }}"
+
+        - name: define vm
+          command: "virsh define /home/images/{{ vm_name }}.xml"
+
+        - name: copy authorized_keys file for root
+          command: virt-copy-in -d {{ vm_name }} /root/.ssh /root/
+
+    - name: start vm
+      virt:
+        name: "{{ vm_name }}"
+        state: running
+
+    - pause:
+        seconds: 15
+
+    - name: Get the management IP address of OOO VM
+      shell: "virsh domifaddr {{ vm_name }} | grep ipv4 | awk '{print $4}' | cut -d '/' -f1"
+      register: ooo_vm_ip_string
+
+    - name: Set OOO VM IP address
+      set_fact:
+        ooo_vm_ip: "{{ ooo_vm_ip_string.stdout_lines[0] }}"
+
+    - name: create hosts entry
+      lineinfile:
+        path: /etc/hosts
+        line: '{{ ooo_vm_ip }} tripleo'
+

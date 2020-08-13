@@ -1,0 +1,28 @@
+---
+- name: Install mosh package
+  package:
+    name: mosh
+  ignore_errors: true
+  register: mosh_pkg
+
+- name: Install from EPEL
+  when: mosh_pkg.rc != 0
+  block:
+    - package:
+        name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    - package:
+        name: mosh
+    - package:
+        name: epel-release
+        state: absent
+
+- name: Open required ports in iptables
+  command: iptables -I INPUT 1 -p udp --dport 60000:61000 -j ACCEPT
+
+- name: Check firewal service status
+  service_facts:
+  register: services
+
+- name: Open required ports in firewalld
+  command: firewall-cmd --add-port=60000-61000/udp --permanent
+  when: "'firewalld' in services and services['firewalld']['state'] == 'running'"

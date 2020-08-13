@@ -1,0 +1,8 @@
+nodes:
+  - rhos-nfv-04.lab.eng.rdu2.redhat.com
+
+vars:
+  mgmt_prefix: 50
+  br_ctlplane_nic: em4
+  br_link0_nic: em1
+  br_link1_nic: em2

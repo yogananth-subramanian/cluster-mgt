@@ -1,0 +1,35 @@
+- name: "Setup RHEL subscription credentials"
+  hosts: beaker-node
+  user: root
+  gather_facts: false
+  tasks:
+    - name: Get beaker repo files
+      find:
+        paths: /etc/yum.repos.d/
+        pattern: beaker-*.repo
+      register: beaker_repo_files
+
+    - name: Delete beaker repo files if present
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      with_items: "{{ beaker_repo_files.files }}"
+
+    - name: enable redhat subscription
+      redhat_subscription: state=present username={{ rhel_subs_user }} password={{ rhel_subs_pass }}
+
+    - name: update subscription pool and repos required for openshift
+      command: "{{ item }}"
+      with_items:
+        - subscription-manager remove --all
+        - subscription-manager attach --pool={{ rhel_subs_pool }}
+        - subscription-manager repos --disable="*"
+        - subscription-manager repos
+            --enable="rhel-7-server-rpms"
+            --enable="rhel-7-server-extras-rpms"
+            --enable="rhel-7-server-optional-rpms"
+            --enable="rhel-7-server-ose-3.11-rpms"
+            --enable="rhel-7-server-ansible-2.6-rpms"
+
+    - name: Install packages
+      command: yum install -y bind-utils iptables-services bridge-utils bash-completion kexec-tools sos psacct cri-o ansible golang pciutils

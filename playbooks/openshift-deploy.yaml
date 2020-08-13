@@ -1,0 +1,75 @@
+---
+- hosts: master
+  gather_facts: no
+  user: root
+  vars:
+    vm: omaster
+    hypervisor: dell-r730-045.dsal.lab.eng.rdu2.redhat.com
+  tasks:
+    - name: add host
+      add_host:
+        hostname: 192.168.122.198
+        ansible_ssh_user: root
+        ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q root@{{ hypervisor }} "'
+        group: omaster
+
+#- hosts: nodes:beaker-node
+#  gather_facts: false
+#  user: root
+#  tasks:
+#    - name: "Disable SELinux"
+#      selinux:
+#        policy: targeted
+#        state: permissive
+#
+#    - name: "Install Packages"
+#      command: yum install -y docker git vim wget tmux
+#
+#    - name: "Enable Docker"
+#      service:
+#        name: docker
+#        state: started
+#        enabled: yes
+#
+#    - name: "Disable swap"
+#      command: swapoff -a
+
+- hosts: omaster
+  user: root
+  tasks:
+    - name: "Install build dependencies"
+      command: yum install golang-bin gcc-c++ ansible -y
+
+    - name: "Check go presence"
+      command: go version
+      register: go_check
+      ignore_errors: yes
+
+    - block:
+      - name: "Install galaxy roles"
+        command: ansible-galaxy install -r ../req-galaxy.yaml -p roles
+        delegate_to: localhost
+
+      - name: "Install golang"
+        include_role:
+          name: gantsign.golang
+        vars:
+          golang_gopath: '$HOME/golang'
+        when: go_check.rc != 0
+
+    - file:
+        path: "$GOPATH/{{ item }}"
+        state: directory
+      with_items:
+        - bin
+        - src
+
+    - name: "Install go dep"
+      shell: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+
+    - name: "Clone openshift installer repo"
+      git:
+        repo: https://github.com/openshift/installer.git
+        dest: $GOPATH/src/github.com/openshift/installer
+
+

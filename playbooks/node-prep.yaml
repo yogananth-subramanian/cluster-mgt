@@ -1,0 +1,162 @@
+---
+- hosts: master
+  gather_facts: no
+  user: root
+  tasks:
+    - name: setup mosh server on remote node
+      include_tasks: mosh/tasks.yaml
+
+    - name: Install basic package
+      command: yum install -y tmux wget git vim
+
+    - include_vars:
+        file: "images.yaml"
+
+    - name: osp16.1 guest image url 
+      set_fact:
+        rhel_guest_image_url: "{{ rhel_guest_image_url_osp16_1 }}"
+      when: "rhosp_version == '16.1'"
+
+    - name: osp13 guest image url 
+      set_fact:
+        rhel_guest_image_url: "{{ rhel_guest_image_url_osp13 }}"
+      when: "rhosp_version == '13'"
+
+    - fail:
+        msg: "Image url variable rhel_guest_image_url is not defined for version {{ rhosp_version }}"
+      when: rhel_guest_image_url is not defined
+
+    - name: check if url exists
+      uri:
+        url: "{{ rhel_guest_image_url }}"
+        method: HEAD
+
+    - name: OSP specific tasks
+      when: rhosp_version is defined
+      block:
+      - name: "Disable SELinux on the host"
+        selinux:
+          policy: targeted
+          state: permissive
+
+      - name: "Install required packages"
+        command: "yum install -y libvirt libvirt-python libguestfs libguestfs-tools-c libguestfs-xfs python-lxml qemu-kvm virt-install libselinux-python git gcc libffi-devel openssl-devel python-virtualenv"
+
+      - name: "Move the libvirt images folder to home"
+        file:
+          path: "/home/images"
+          state: directory
+          mode: '777'
+
+      - name: "Delete libvirt's image directory"
+        file:
+          path: "/var/lib/libvirt/images"
+          state: absent
+
+      - name: "Create softlink for the default libvirt image directory"
+        file:
+          path: "/var/lib/libvirt/images"
+          state: link
+          src: "/home/images"
+
+      - git:
+          repo: 'https://github.com/redhat-openstack/infrared.git'
+          dest: /root/infrared
+
+      - name: "Copy topology file as per the host node"
+        template:
+          src: "../templates/hybrid_topology.j2.yaml"
+          dest: "/root/infrared/plugins/virsh/vars/topology/network/3_bridges_1_net.yml"
+
+      - name: "Assign instackenv.json file as per the node selected"
+        set_fact:
+          nodes_file: "{{ inventory_hostname.split('.')[0] }}-nodes.json"
+
+      - name: "Copy instackenv.json file as per the host node"
+        copy:
+          src: "../files/{{ nodes_file }}"
+          dest: "/root/hybrid_nodes.json"
+
+      - name: "Copy ansible.cfg to infrared"
+        copy:
+          src: "../ansible.cfg"
+          dest: "/root/infrared/"
+
+      - name: "Copy ansible.cfg to home directory"
+        copy:
+          src: "../ansible.cfg"
+          dest: "/root/"
+
+      - name: Check if the directory is valid path
+        stat:
+          path: "{{ templates_dir }}"
+        register: tmpl_stat
+        delegate_to: localhost
+
+      - name: fail if the template directory is invalid
+        fail:
+          msg: "template directory {{ templates_dir }} is invalid"
+        when: not tmpl_stat.stat.exists
+
+      - name: "Copy local tempaltes directory with absolute path"
+        copy:
+          src: "{{ templates_dir }}"
+          dest: "/root/"
+
+      - set_fact:
+          templates_dir_path: "/root/{{ templates_dir|regex_replace('\\/$', '')|basename }}"
+
+      - name: copy regular deploy script
+        copy:
+          src: "{{ templates_dir }}/overcloud_deploy_regular.sh"
+          dest: "{{ templates_dir_path }}/overcloud_deploy.sh"
+          mode: 0755
+        when:
+          - feature_offload is not defined or not feature_offload
+  
+      - name: copy offload deploy script
+        copy:
+          src: "{{ templates_dir }}/overcloud_deploy_offload.sh"
+          dest: "{{ templates_dir_path }}/overcloud_deploy.sh"
+          mode: 0755
+        when: feature_offload is defined and feature_offload
+
+      - name: "Create Infrared deploy command"
+        template:
+          src: "../templates/deploy.sh.j2"
+          dest: "/root/infrared/deploy.sh"
+
+      - name: "Clone templates repo"
+        git:
+          repo: git://github.com/krsacme/tht-dpdk.git
+          dest: /root/tht-dpdk
+
+    # End of block
+
+    - name: "Ensure SSH key is generated"
+      command: ssh-keygen -t rsa -f /root/.ssh/id_rsa -N ''
+      args:
+        creates: /root/.ssh/id_rsa
+
+    - name: "Create SSH public key"
+      command: ssh-keygen -y -f /root/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+      args:
+        creates: /root/.ssh/id_rsa.pub
+
+    - name: "Create SSH public key"
+      shell: cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+
+    - name: "copu ffu16 scripts"
+      copy:
+        src: "../templates/ffu16/"
+        dest: "/root/ffu16/"
+
+    - block:
+      - name: "Create execute.sh for infrared deploy execution"
+        copy:
+          dest: "/root/execute.sh"
+          src: "../templates/execute.sh"
+
+      - name: "Start deployment in tmux for OSP"
+        command: tmux new-session -d -s infrared '/bin/bash --init-file /root/execute.sh'
+      when: rhosp_version is defined and rhosp_deploy

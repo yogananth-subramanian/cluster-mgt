@@ -1,0 +1,29 @@
+<job owner="skramaja@redhat.com" retention_tag="scratch">
+  <whiteboard>Reserve Workflow provision of distro RHEL-7.8 on a specific system for 86400 seconds</whiteboard>
+  <recipeSet id="7069676" priority="High" response="ack">
+    <recipe arch="x86_64" distro="RHEL-7.8" family="RedHatEnterpriseLinux7" id="8652901" job_id="4473860" kernel_options="" kernel_options_post="" ks_meta="" recipe_set_id="7069676" result="New" role="RECIPE_MEMBERS" status="Queued" variant="Server" whiteboard="">
+      <autopick random="false"/>
+      <watchdog panic="ignore"/>
+      <installation/>
+      <packages/>
+      <ks_appends/>
+      <repos/>
+      <distroRequires>
+        <and>
+          <distro_family op="=" value="RedHatEnterpriseLinux7"/>
+          <distro_variant op="=" value="Server"/>
+          <distro_name op="=" value="RHEL-7.8"/>
+          <distro_arch op="=" value="x86_64"/>
+        </and>
+      </distroRequires>
+      <hostRequires force="dell-r640-oss-13.lab.eng.brq.redhat.com"/>
+      <partitions/>
+      <logs/>
+      <task avg_time="600" name="/distribution/check-install" role="STANDALONE">
+        <rpm name="beaker-core-tasks-distribution-check-install" path="/mnt/tests/distribution/check-install"/>
+        <logs/>
+      </task>
+      <reserversys duration="2"/>
+    </recipe>
+  </recipeSet>
+</job>

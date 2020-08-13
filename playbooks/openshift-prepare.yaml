@@ -1,0 +1,77 @@
+---
+- hosts: master
+  gather_facts: no
+  user: root
+  vars:
+    create: yes
+    vm: omaster
+  tasks:
+    - fail:
+        msg: "root_password should be defined"
+      when: root_password is not defined
+    - name: get vms list
+      virt:
+        command: list_vms
+      register: vms
+
+    - set_fact:
+        create: no
+      when: "vm in  vms.list_vms"
+
+    - when: create
+      block:
+        - name: create disk
+          command:
+              virt-builder --format qcow2 centos-7.6 --size 20G
+                -o /home/images/{{ vm }}.qcow2
+                --root-password password:{{ root_password }}
+          args:
+            creates: /home/images/{{ vm }}.qcow2
+
+        - name: update ifcfg
+          copy:
+            dest: /tmp/ifcfg-eth0
+            content: |
+              DEVICE=eth0
+              ONBOOT=yes
+              IPADDR=192.168.122.198
+              NETMASK=255.255.255.0
+              GATEWAY=192.168.122.1
+              NM_CONTROLLED=no
+              DNS1=192.168.122.1
+
+        - name: create vm xml
+          command: >
+            virt-install --import --name {{ vm }}
+            --memory 16384 --vcpus 4
+            --disk /home/images/{{ vm }}.qcow2
+            --noautoconsole --os-variant rhel7
+            --network network:default
+            --print-xml
+          register: masterxml
+
+        - name: create xml file
+          copy:
+            dest: "/home/images/{{ vm }}.xml"
+            content:
+              "{{ masterxml.stdout_lines|join('\n') }}"
+
+        - name: define vm
+          command: virsh define /home/images/{{ vm }}.xml
+
+        - name: copy ifcf file
+          command: virt-copy-in -d {{ vm }} /tmp/ifcfg-eth0 /etc/sysconfig/network-scripts/
+
+        - name: copy authorized_keys file
+          command: virt-copy-in -d {{ vm }} /root/.ssh /root/
+
+    - name: create hosts entry
+      lineinfile:
+        path: /etc/hosts
+        line: '192.168.122.198 {{ vm }}'
+
+    - name: start vm
+      virt:
+        name: "{{ vm }}"
+        state: running
+

@@ -1,0 +1,24 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars:
+    host_name: dell-r640-oss-13.lab.eng.brq.redhat.com
+  tasks:
+    - fail:
+        msg: "ipmi_password has to be provided"
+      when: ipmi_password is not defined
+    - fail:
+        msg: "host_name varible should be provided"
+      when: host_name is not defined
+    - name: get host prefix
+      set_fact:
+        host_parts: "{{ host_name.split('.', 1) }}"
+    - name: set idrac host name
+      set_fact:
+        idrac_name: "{{ host_parts[0] + '-mm.' + host_parts[1] }}"
+    - name: power on the system
+      ipmi_power:
+        name: "{{ idrac_name }}"
+        user: root
+        password: "{{ ipmi_password }}"
+        state: on

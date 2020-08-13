@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -e
+
+HOST=$1
+if [[ -z $HOST ]]; then
+    echo "Provide Host entry name in .ssh/config file"
+    exit 1
+fi
+
+./parse_sshconfig $HOST
+
+if [ ! -f 'hosts' ]; then
+    echo "hosts file is not created to run ansible"
+    exit 1
+fi
+
+ansible-playbook -i hosts playbook.yaml
