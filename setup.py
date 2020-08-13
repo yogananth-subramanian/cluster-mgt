@@ -212,6 +212,9 @@ def main(argv):
         beaker_pswd = getpass.getpass('Enter Beaker Password:')
     if args.subs:
         rhel_subs_pass = getpass.getpass('Enter RHEL Subscription Password:')
+    if args.rhosp_version:
+        ipmi_password = getpass.getpass('Enter IPMI password of the node:')
+        pool_vars['ipmi_password'] = ipmi_password
 
     if args.rhosp_version and len(node_list) > 1:
         node_list = [node_list[0]]

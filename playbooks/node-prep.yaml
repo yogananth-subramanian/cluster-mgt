@@ -68,13 +68,18 @@
           src: "../templates/hybrid_topology.j2.yaml"
           dest: "/root/infrared/plugins/virsh/vars/topology/network/3_bridges_1_net.yml"
 
+      - name: check if ipmi password is provided as input
+        fail:
+          msg: "ipmi_password is not provided"
+        when: ipmi_password is not defined
+
       - name: "Assign instackenv.json file as per the node selected"
         set_fact:
           nodes_file: "{{ inventory_hostname.split('.')[0] }}-nodes.json"
 
       - name: "Copy instackenv.json file as per the host node"
-        copy:
-          src: "../files/{{ nodes_file }}"
+        template:
+          src: "../templates/instack/{{ nodes_file }}"
           dest: "/root/hybrid_nodes.json"
 
       - name: "Copy ansible.cfg to infrared"
