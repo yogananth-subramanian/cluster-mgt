@@ -33,6 +33,7 @@ def construct_beaker_args(beaker_user, beaker_pswd, beaker_node,
     args.extend(['--host-pubkey', home_dir + '/.ssh/id_rsa.pub'])
     args.extend(['--host-privkey', home_dir + '/.ssh/id_rsa'])
     args.extend(['--host-user', 'root'])
+    args.extend(['--host-password', beaker_pswd])
     args.extend(['--web-service', 'rest'])
     if centos == '8':
         args.extend(['--image', 'centos-8'])
