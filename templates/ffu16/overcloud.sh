@@ -13,5 +13,5 @@ infrared tripleo-upgrade --deployment-files osp13_ref --overcloud-ffu-upgrade ye
 
 
 # converge
-infrared tripleo-upgrade --deployment-files osp13_ref --overcloud-ffu-upgrade yes --overcloud-ffu-releases '14,15,16.1' --upgrade-floatingip-check no --upgrade-workload no  --upgrade-ffu-workarounds yes -e @workarounds.yaml --ansible-args="skip-tags=ffu_overcloud_prepare,ffu_overcloud_run,ffu_overcloud_ceph" -e launch_sanity_workload=false
+infrared tripleo-upgrade --deployment-files osp13_ref --overcloud-ffu-upgrade yes --overcloud-ffu-releases '14,15,16.1' --upgrade-floatingip-check no --upgrade-workload no  --upgrade-ffu-workarounds yes -e @workarounds.yaml --ansible-args="skip-tags=ffu_overcloud_prepare,ffu_overcloud_run,ffu_overcloud_ceph,ffu_overcloud_post" -e launch_sanity_workload=false
 
