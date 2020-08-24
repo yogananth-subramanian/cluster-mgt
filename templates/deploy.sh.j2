@@ -45,6 +45,9 @@ if [ -f ~/clouds.yaml ]; then
     cp ~/clouds.yaml ~/.config/openstack/
 fi
 
+# Copy rhel qcow2 image for workload creation
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /var/lib/libvirt/images/rhel*.qcow2 stack@undercloud-0:~/rhel.qcow2
+
 infrared tripleo-overcloud \
     --version {{ rhosp_version }} \
     --deployment-files "{{ templates_dir_path }}"  \
@@ -56,4 +59,3 @@ infrared tripleo-overcloud \
     --vbmc-force False \
     --vbmc-host hypervisor \
     --hybrid ~/hybrid_nodes.json
-

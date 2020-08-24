@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+set -ex
 
 cd /root/infrared
 
@@ -34,3 +34,17 @@ control_path = /tmp/.venv/%%h-%%r
 EOF
 
 bash deploy.sh
+
+#if [ -f $HOME/workload.sh ]; then
+#  scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $HOME/workload.sh stack@undercloud-0:~/
+#  infrared ssh undercloud-0 "bash workload.sh"
+#fi
+
+# FFU
+cd /root/ffu16
+bash setup.sh
+bash undercloud.sh
+bash overcloud.sh
+
+# keep the tmux open
+sleep infinity

@@ -156,6 +156,11 @@
         src: "../templates/ffu16/"
         dest: "/root/ffu16/"
 
+    - name: "copy workload script"
+      copy:
+        src: "../templates/workload.sh"
+        dest: "/root/workload.sh"
+
     - block:
       - name: "Create execute.sh for infrared deploy execution"
         copy:
@@ -163,5 +168,5 @@
           src: "../templates/execute.sh"
 
       - name: "Start deployment in tmux for OSP"
-        command: tmux new-session -d -s infrared '/bin/bash --init-file /root/execute.sh'
+        command: tmux new-session -d -s infrared '/bin/bash /root/execute.sh 2>&1 | tee /root/execute.log'
       when: rhosp_version is defined and rhosp_deploy
